@@ -1,8 +1,16 @@
-local function getAllJobIds()
-    local results = {}
-    local spoofed = game.JobId
+local spoofed = game.JobId
 
-    local function method1()
+local function safeCall(func)
+    local success, result = pcall(func)
+    if success then
+        return result
+    else
+        return nil
+    end
+end
+
+local methods = {
+    {name = "Method 1 (stepAnimate hook)", func = function()
         local realJobId = game.JobId
         if identifyexecutor and identifyexecutor() == "Delta" then
             local stepAnimate = nil
@@ -38,9 +46,8 @@ local function getAllJobIds()
             end
         end
         return realJobId
-    end
-
-    local function method2()
+    end},
+    {name = "Method 2 (clone)", func = function()
         local real = game.JobId
         local mt = getrawmetatable(game)
         local oldIndex = mt.__index
@@ -57,9 +64,8 @@ local function getAllJobIds()
         if cloned then cloned:Destroy() end
         mt.__index = oldIndex
         return real
-    end
-
-    local function method3()
+    end},
+    {name = "Method 3 (API first diff)", func = function()
         local http = game:GetService("HttpService")
         local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?limit=100"
         local requestMethod = nil
@@ -86,9 +92,8 @@ local function getAllJobIds()
             end
         end
         return nil
-    end
-
-    local function method4()
+    end},
+    {name = "Method 4 (Teleport hook)", func = function()
         local ts = game:GetService("TeleportService")
         local old = ts.TeleportToPlaceInstance
         local captured = nil
@@ -99,9 +104,8 @@ local function getAllJobIds()
         task.wait(0.1)
         ts.TeleportToPlaceInstance = old
         return captured
-    end
-
-    local function method5()
+    end},
+    {name = "Method 5 (API any server)", func = function()
         local http = game:GetService("HttpService")
         local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?limit=100&sortOrder=Asc"
         local requestMethod = nil
@@ -128,9 +132,8 @@ local function getAllJobIds()
             end
         end
         return nil
-    end
-
-    local function method6()
+    end},
+    {name = "Method 6 (ReplicatedStorage)", func = function()
         local rs = game:GetService("ReplicatedStorage")
         for _, child in ipairs(rs:GetChildren()) do
             if child:IsA("StringValue") and child.Name:lower():find("job") and #child.Value > 10 then
@@ -138,9 +141,8 @@ local function getAllJobIds()
             end
         end
         return nil
-    end
-
-    local function method7()
+    end},
+    {name = "Method 7 (Memory scan)", func = function()
         local pattern = "^%x+%-%x+%-%x+%-%x+%-%x+$"
         for _, v in ipairs(getgc(true)) do
             if type(v) == "string" and #v == 36 and string.match(v, pattern) then
@@ -150,9 +152,8 @@ local function getAllJobIds()
             end
         end
         return nil
-    end
-
-    local function method8()
+    end},
+    {name = "Method 8 (TeleportInfo)", func = function()
         local ts = game:GetService("TeleportService")
         local ok, info = pcall(function()
             return ts:GetTeleportInfo(game.PlaceId)
@@ -161,9 +162,8 @@ local function getAllJobIds()
             return info.JobId
         end
         return nil
-    end
-
-    local function method9()
+    end},
+    {name = "Method 9 (Services)", func = function()
         local services = {game:GetService("Lighting"), game:GetService("SoundService"), game:GetService("Teams")}
         for _, svc in ipairs(services) do
             for _, child in ipairs(svc:GetChildren()) do
@@ -173,13 +173,11 @@ local function getAllJobIds()
             end
         end
         return nil
-    end
-
-    local function method10()
+    end},
+    {name = "Method 10 (rawget)", func = function()
         return rawget(game, "JobId")
-    end
-
-    local function method11()
+    end},
+    {name = "Method 11 (Environment)", func = function()
         if getgenv().REAL_JOB_ID then
             return getgenv().REAL_JOB_ID
         end
@@ -187,9 +185,8 @@ local function getAllJobIds()
             return _G.REAL_JOB_ID
         end
         return nil
-    end
-
-    local function method12()
+    end},
+    {name = "Method 12 (Loaded event)", func = function()
         local realId = nil
         local conn
         conn = game.Loaded:Connect(function()
@@ -198,91 +195,51 @@ local function getAllJobIds()
         end)
         task.wait(0.5)
         return realId
-    end
-
-    local methods = {
-        {name = "Method 1 (stepAnimate hook)", func = method1},
-        {name = "Method 2 (clone)", func = method2},
-        {name = "Method 3 (API first diff)", func = method3},
-        {name = "Method 4 (Teleport hook)", func = method4},
-        {name = "Method 5 (API any server)", func = method5},
-        {name = "Method 6 (ReplicatedStorage)", func = method6},
-        {name = "Method 7 (Memory scan)", func = method7},
-        {name = "Method 8 (TeleportInfo)", func = method8},
-        {name = "Method 9 (Services)", func = method9},
-        {name = "Method 10 (rawget)", func = method10},
-        {name = "Method 11 (Environment)", func = method11},
-        {name = "Method 12 (Loaded event)", func = method12}
-    }
-
-    for i, m in ipairs(methods) do
-        local success, result = pcall(m.func)
-        if success and result and type(result) == "string" and #result == 36 then
-            results[m.name] = result
-        else
-            results[m.name] = nil
-        end
-    end
-
-    return results
-end
-
-local spoofed = game.JobId
-local results = getAllJobIds()
-
-local vote = {}
-local methodStatus = {}
-
-for name, id in pairs(results) do
-    local status = "FAILED"
-    if id then
-        if id == spoofed then
-            status = "SPOOFED"
-        else
-            status = "WORKING"
-            vote[id] = (vote[id] or 0) + 1
-        end
-    end
-    methodStatus[name] = {id = id, status = status}
-end
+    end}
+}
 
 print("=== JOB ID DETECTION RESULTS ===")
 print("Spoofed (game.JobId):", spoofed)
 print("")
 
-local methodOrder = {
-    "Method 1 (stepAnimate hook)",
-    "Method 2 (clone)",
-    "Method 3 (API first diff)",
-    "Method 4 (Teleport hook)",
-    "Method 5 (API any server)",
-    "Method 6 (ReplicatedStorage)",
-    "Method 7 (Memory scan)",
-    "Method 8 (TeleportInfo)",
-    "Method 9 (Services)",
-    "Method 10 (rawget)",
-    "Method 11 (Environment)",
-    "Method 12 (Loaded event)"
-}
+local vote = {}
+local results = {}
 
-local working = {}
-local spoofedMethods = {}
-local failed = {}
-
-for _, name in ipairs(methodOrder) do
-    local entry = methodStatus[name]
-    if entry then
-        local idStr = entry.id or "nil"
-        local status = entry.status
-        print(string.format("%-25s | %-8s | %s", name, status, idStr))
-        if status == "WORKING" then table.insert(working, name) end
-        if status == "SPOOFED" then table.insert(spoofedMethods, name) end
-        if status == "FAILED" then table.insert(failed, name) end
+for _, m in ipairs(methods) do
+    local result = safeCall(m.func)
+    results[m.name] = result
+    local status = "FAILED"
+    if result then
+        if result == spoofed then
+            status = "SPOOFED"
+        else
+            status = "WORKING"
+            vote[result] = (vote[result] or 0) + 1
+        end
     end
+    print(string.format("%-30s | %-8s | %s", m.name, status, result or "nil"))
 end
 
 print("")
 print("=== SUMMARY ===")
+local working = {}
+local spoofedMethods = {}
+local failed = {}
+for name, result in pairs(results) do
+    local status = "FAILED"
+    if result then
+        if result == spoofed then
+            status = "SPOOFED"
+            table.insert(spoofedMethods, name)
+        else
+            status = "WORKING"
+            table.insert(working, name)
+        end
+    else
+        table.insert(failed, name)
+    end
+end
+
 print("WORKING methods:")
 for _, name in ipairs(working) do
     print("  - " .. name)
