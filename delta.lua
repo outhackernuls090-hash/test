@@ -233,10 +233,6 @@ local results = getAllJobIds()
 local vote = {}
 local methodStatus = {}
 
-print("=== JOB ID DETECTION RESULTS ===")
-print("Spoofed (game.JobId):", spoofed)
-print("")
-
 for name, id in pairs(results) do
     local status = "FAILED"
     if id then
@@ -250,7 +246,10 @@ for name, id in pairs(results) do
     methodStatus[name] = {id = id, status = status}
 end
 
--- Print in method order
+print("=== JOB ID DETECTION RESULTS ===")
+print("Spoofed (game.JobId):", spoofed)
+print("")
+
 local methodOrder = {
     "Method 1 (stepAnimate hook)",
     "Method 2 (clone)",
@@ -266,16 +265,43 @@ local methodOrder = {
     "Method 12 (Loaded event)"
 }
 
+local working = {}
+local spoofedMethods = {}
+local failed = {}
+
 for _, name in ipairs(methodOrder) do
     local entry = methodStatus[name]
     if entry then
         local idStr = entry.id or "nil"
         local status = entry.status
         print(string.format("%-25s | %-8s | %s", name, status, idStr))
+        if status == "WORKING" then table.insert(working, name) end
+        if status == "SPOOFED" then table.insert(spoofedMethods, name) end
+        if status == "FAILED" then table.insert(failed, name) end
     end
 end
 
 print("")
+print("=== SUMMARY ===")
+print("WORKING methods:")
+for _, name in ipairs(working) do
+    print("  - " .. name)
+end
+print("SPOOFED methods:")
+for _, name in ipairs(spoofedMethods) do
+    print("  - " .. name)
+end
+print("FAILED methods:")
+for _, name in ipairs(failed) do
+    print("  - " .. name)
+end
+
+print("")
+print("Votes per candidate:")
+for id, count in pairs(vote) do
+    print(string.format("  %s : %d vote(s)", id, count))
+end
+
 local realId = spoofed
 local maxVotes = 0
 for id, count in pairs(vote) do
@@ -283,11 +309,6 @@ for id, count in pairs(vote) do
         maxVotes = count
         realId = id
     end
-end
-
-print("Votes per candidate:")
-for id, count in pairs(vote) do
-    print(string.format("  %s : %d vote(s)", id, count))
 end
 
 print("")
