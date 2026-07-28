@@ -4,7 +4,6 @@ local function getAllJobIds()
 
     local function method1()
         local realJobId = game.JobId
-        local success = false
         if identifyexecutor and identifyexecutor() == "Delta" then
             local stepAnimate = nil
             local printed = false
@@ -204,9 +203,9 @@ local function getAllJobIds()
     local methods = {
         {name = "Method 1 (stepAnimate hook)", func = method1},
         {name = "Method 2 (clone)", func = method2},
-        {name = "Method 3 (API first)", func = method3},
+        {name = "Method 3 (API first diff)", func = method3},
         {name = "Method 4 (Teleport hook)", func = method4},
-        {name = "Method 5 (API all servers)", func = method5},
+        {name = "Method 5 (API any server)", func = method5},
         {name = "Method 6 (ReplicatedStorage)", func = method6},
         {name = "Method 7 (Memory scan)", func = method7},
         {name = "Method 8 (TeleportInfo)", func = method8},
@@ -231,27 +230,69 @@ end
 local spoofed = game.JobId
 local results = getAllJobIds()
 
-local votes = {}
+local vote = {}
+local methodStatus = {}
+
+print("=== JOB ID DETECTION RESULTS ===")
+print("Spoofed (game.JobId):", spoofed)
+print("")
+
 for name, id in pairs(results) do
-    if id == spoofed then
-        print(name .. " SPOOFED")
-    else
-        print(name .. " Working")
+    local status = "FAILED"
+    if id then
+        if id == spoofed then
+            status = "SPOOFED"
+        else
+            status = "WORKING"
+            vote[id] = (vote[id] or 0) + 1
+        end
     end
-    if id and id ~= spoofed then
-        votes[id] = (votes[id] or 0) + 1
+    methodStatus[name] = {id = id, status = status}
+end
+
+-- Print in method order
+local methodOrder = {
+    "Method 1 (stepAnimate hook)",
+    "Method 2 (clone)",
+    "Method 3 (API first diff)",
+    "Method 4 (Teleport hook)",
+    "Method 5 (API any server)",
+    "Method 6 (ReplicatedStorage)",
+    "Method 7 (Memory scan)",
+    "Method 8 (TeleportInfo)",
+    "Method 9 (Services)",
+    "Method 10 (rawget)",
+    "Method 11 (Environment)",
+    "Method 12 (Loaded event)"
+}
+
+for _, name in ipairs(methodOrder) do
+    local entry = methodStatus[name]
+    if entry then
+        local idStr = entry.id or "nil"
+        local status = entry.status
+        print(string.format("%-25s | %-8s | %s", name, status, idStr))
     end
 end
 
+print("")
 local realId = spoofed
 local maxVotes = 0
-for id, count in pairs(votes) do
+for id, count in pairs(vote) do
     if count > maxVotes then
         maxVotes = count
         realId = id
     end
 end
 
-print("REAL_JOB_ID = " .. realId)
+print("Votes per candidate:")
+for id, count in pairs(vote) do
+    print(string.format("  %s : %d vote(s)", id, count))
+end
+
+print("")
+print("FINAL REAL_JOB_ID = " .. realId)
 getgenv().REAL_JOB_ID = realId
 _G.REAL_JOB_ID = realId
+
+return realId
